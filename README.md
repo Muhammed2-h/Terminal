@@ -17,7 +17,7 @@ A production-grade, containerized Ubuntu LTS environment with persistent storage
 - **📊 Minimal UI Dashboards**: Fast, built-in CLI monitoring via `btop` and `nvtop` included.
 - **🔄 Auto-Updates**: Automatically performs `apt upgrade` on both build and container startup.
 - **💾 100% Persistence**: Data in `/root`, `/home`, and tool configs survive redeployments.
-- **🤖 AI Ready**: Toggle `Ollama` and `OpenClaw` via environment variables.
+- **🤖 AI Ready**: Pre-installed `Ollama` and `OpenClaw`. Start them manually on-demand to preserve cloud resources.
 - **🛡️ Global Zero-Trust Auth**: Replaced individual app logins with a global Nginx `.htpasswd` padlock. Protects **all** endpoints (Ollama, UI, Previews) simultaneously.
 - **🧱 Anti-DDoS Rate Limiting**: Built-in `limit_req` zones drop malicious bot-nets attempting brute force attacks before they touch your CPU.
 - **🩺 Auto-healing**: Supervisor monitors and restarts failed processes.
@@ -28,14 +28,13 @@ A production-grade, containerized Ubuntu LTS environment with persistent storage
 
 Configure these in your hosting dashboard:
 
-| Variable            | Default       | Description                        |
-| :------------------ | :------------ | :--------------------------------- |
-| `PORT`              | `8080`        | Port for the web terminal          |
-| `TERMINAL_USER`     | `admin`       | Your login username                |
-| `TERMINAL_PASSWORD` | `password123` | Your login password                |
-| `MAX_CLIENTS`       | `10`          | Max simultaneous terminal sessions |
-| `ENABLE_OLLAMA`     | `false`       | Set to `true` to enable Ollama     |
-| `ENABLE_OPENCLAW`   | `false`       | Set to `true` to enable OpenClaw   |
+| Variable            | Default       | Description                                          |
+| :------------------ | :------------ | :--------------------------------------------------- |
+| `PORT`              | `8080`        | Port for the web terminal                            |
+| `TERMINAL_USER`     | `admin`       | Your login username                                  |
+| `TERMINAL_PASSWORD` | `password123` | Your login password                                  |
+| `MAX_CLIENTS`       | `10`          | Max simultaneous terminal sessions                   |
+| `CLOUDFLARE_TOKEN`  | _None_        | Set to secure your terminal via a Cloudflare Tunnel. |
 
 ### 2. Volume Mounting (CRITICAL)
 

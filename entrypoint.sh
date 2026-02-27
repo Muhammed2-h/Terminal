@@ -75,16 +75,6 @@ if [ -n "$DOTFILES_REPO" ]; then
     fi
 fi
 
-# Handle OpenClaw initialization
-if [ "$ENABLE_OPENCLAW" = "true" ]; then
-    echo "OpenClaw integration enabled."
-    if [ ! -d "/root/openclaw" ]; then
-        echo "Cloning OpenClaw..."
-        git clone https://github.com/the-claw-team/openclaw /root/openclaw
-        cd /root/openclaw && npm install
-    fi
-fi
-
 # Generate Global Zero-Trust Nginx Authentication Overlay
 echo "🔒 Securing container endpoints for user: $TERMINAL_USER..."
 htpasswd -bc /etc/nginx/.htpasswd "$TERMINAL_USER" "$TERMINAL_PASSWORD"
@@ -107,24 +97,20 @@ chmod +x /usr/local/bin/start-ttyd.sh
 # Generate AI & Tool Launchers based on variables
 cat <<'EOF' > /usr/local/bin/start-ollama.sh
 #!/bin/bash
-if [ "$ENABLE_OLLAMA" = "true" ]; then
-    export OLLAMA_HOST="0.0.0.0"
-    exec ollama serve
-else
-    # Sleep forever to prevent restart loops
-    sleep infinity
-fi
+export OLLAMA_HOST="0.0.0.0"
+exec ollama serve
 EOF
 chmod +x /usr/local/bin/start-ollama.sh
 
 cat <<'EOF' > /usr/local/bin/start-openclaw.sh
 #!/bin/bash
-if [ "$ENABLE_OPENCLAW" = "true" ] && [ -d "/root/openclaw" ]; then
-    cd /root/openclaw
-    exec npm start
-else
-    sleep infinity
+if [ ! -d "/root/openclaw" ]; then
+    echo "Cloning OpenClaw..."
+    git clone https://github.com/the-claw-team/openclaw /root/openclaw
+    cd /root/openclaw && npm install
 fi
+cd /root/openclaw
+exec npm start
 EOF
 chmod +x /usr/local/bin/start-openclaw.sh
 
