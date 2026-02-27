@@ -1,0 +1,18 @@
+# Premium Tmux Configuration
+set -g mouse on
+set -g default-terminal "screen-256color"
+set -g history-limit 10000
+
+# Status Bar Styling
+set -g status-bg black
+set -g status-fg white
+set -g status-interval 1
+set -g status-right '#[fg=green,bg=black,bold] %H:%M:%S #[fg=white,bg=blue] #H '
+set -g status-left '#[fg=black,bg=green,bold] SESSION #S '
+
+# Panes
+set -g pane-border-style fg=black
+set -g pane-active-border-style fg=blue
+
+# Message
+set -g message-style bg=blue,fg=white

@@ -1,0 +1,30 @@
+version: '3.8'
+
+services:
+  cloud-terminal:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: cloud-terminal
+    ports:
+      - "${PORT:-8080}:${PORT:-8080}"
+    environment:
+      - PORT=${PORT:-8080}
+      - TERMINAL_USER=${TERMINAL_USER:-admin}
+      - TERMINAL_PASSWORD=${TERMINAL_PASSWORD:-password123}
+      - MAX_CLIENTS=${MAX_CLIENTS:-10}
+      - ENABLE_OLLAMA=${ENABLE_OLLAMA:-false}
+      - ENABLE_OPENCLAW=${ENABLE_OPENCLAW:-false}
+    volumes:
+      - ./data:/data
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    restart: always
+
+volumes:
+  data:

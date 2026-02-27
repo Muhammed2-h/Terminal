@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>502 | Serverless Worker Crashed</title>
+    <style>
+      body {
+        background: #0f172a;
+        color: #f8fafc;
+        font-family:
+          ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+          "Liberation Mono", "Courier New", monospace;
+        padding: 2rem;
+      }
+      .container {
+        max-width: 800px;
+        margin: 0 auto;
+        background: #1e293b;
+        padding: 2rem;
+        border-radius: 12px;
+        border: 1px solid #334155;
+      }
+      h1 {
+        margin-top: 0;
+        color: #ef4444;
+        border-bottom: 2px solid #334155;
+        padding-bottom: 1rem;
+      }
+      p {
+        line-height: 1.5;
+        color: #cbd5e1;
+      }
+      .traceback-container {
+        background: #000;
+        padding: 1.5rem;
+        border-radius: 8px;
+        border-left: 4px solid #ef4444;
+        margin-top: 1.5rem;
+      }
+      .traceback {
+        margin: 0;
+        color: #f87171;
+        white-space: pre-wrap;
+        word-wrap: break-word;
+        overflow-x: auto;
+        font-size: 0.9rem;
+      }
+      .footer {
+        margin-top: 2rem;
+        color: #94a3b8;
+        font-size: 0.85rem;
+        border-top: 1px solid #334155;
+        padding-top: 1rem;
+      }
+      .spinner {
+        display: inline-block;
+        width: 12px;
+        height: 12px;
+        border: 2px solid rgba(255, 255, 255, 0.3);
+        border-radius: 50%;
+        border-top-color: #fff;
+        animation: spin 1s ease-in-out infinite;
+        margin-right: 6px;
+      }
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>🔥 Worker Crashed (502 Bad Gateway)</h1>
+      <p>
+        Your backend server (managed by PM2) has stopped responding and Nginx
+        cannot reach it. The worker might have crashed due to a syntax error or
+        exception.
+      </p>
+      <p>
+        <strong
+          ><span class="spinner"></span> PM2 Auto-Recovery is currently
+          attempting to restart the process...</strong
+        >
+      </p>
+
+      <div class="traceback-container">
+        <pre class="traceback" id="tb">
+Fetching PM2 Serverless Error Logs...</pre
+        >
+      </div>
+
+      <script>
+        // Fetch the traceback logic created by pm2-error-watcher.sh
+        setTimeout(() => {
+          fetch("/pm2-error.log?t=" + Date.now())
+            .then((response) => response.text())
+            .then((text) => {
+              document.getElementById("tb").textContent =
+                text.trim() ||
+                "No recent crashes detected in PM2 logs. The process might just be booting up.";
+            })
+            .catch((err) => {
+              document.getElementById("tb").textContent =
+                "Could not fetch traceback link.";
+            });
+        }, 500);
+      </script>
+
+      <div class="footer">
+        Cloud Terminal Auto-Recovery System • Powered by PM2 & Supervisor
+      </div>
+    </div>
+  </body>
+</html>

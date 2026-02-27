@@ -1,0 +1,22 @@
+app = "cloud-terminal"
+primary_region = "ord"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[http_service]
+  internal_port = 8080 # This will be mapped to $PORT by Nginx
+  force_https = true
+  auto_stop_machines = true
+  auto_start_machines = true
+  min_machines_running = 0
+  processes = ["app"]
+
+[[mounts]]
+  source = "terminal_data"
+  destination = "/data"
+
+[env]
+  PORT = "8080"
+  ENABLE_OLLAMA = "false"
+  ENABLE_OPENCLAW = "false"

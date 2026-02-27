@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: cloud-terminal
+    runtime: docker
+    plan: starter # Change as needed
+    region: oregon
+    dockerfilePath: Dockerfile
+    healthCheckPath: /healthz
+    envVars:
+      - key: PORT
+        value: 10000 # Render default, but Nginx will handle it
+      - key: TERMINAL_USER
+        sync: false
+      - key: TERMINAL_PASSWORD
+        generateValue: true
+      - key: ENABLE_OLLAMA
+        value: "false"
+      - key: ENABLE_OPENCLAW
+        value: "false"
+    disk:
+      name: terminal-data
+      mountPath: /data
+      sizeGB: 10

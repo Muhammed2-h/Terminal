@@ -1,0 +1,85 @@
+# Global Rate Limiting to prevent Brute-Force and DDoS attacks
+# Allows 10 requests per second per IP across the whole terminal
+limit_req_zone $binary_remote_addr zone=terminal_limit:10m rate=10r/s;
+
+server {
+    listen ${PORT};
+    server_name _;
+
+    # Global Zero-Trust Authenticator
+    auth_basic "Cloud Terminal Secure Access";
+    auth_basic_user_file /etc/nginx/.htpasswd;
+
+    # Apply Rate Limiting (Bursts allowed but eventually throttled)
+    limit_req zone=terminal_limit burst=20 nodelay;
+
+    # Security Headers
+    add_header X-Frame-Options "SAMEORIGIN";
+    add_header X-XSS-Protection "1; mode=block";
+    add_header X-Content-Type-Options "nosniff";
+
+    # Global performance optimizations for internal API speed
+    tcp_nodelay on;
+    tcp_nopush on;
+    keepalive_timeout 65;
+    
+    # Standard proxy headers
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+
+    # Dynamic Preview Inclusion
+    include /etc/nginx/conf.d/*.conf;
+
+    # Custom Auto-Scaling 502 Page (Worker Crashed)
+    error_page 502 /502.html;
+    location = /502.html {
+        root /usr/share/nginx/html;
+        internal;
+    }
+    # Expose the PM2 traceback log to the 502 page
+    location = /pm2-error.log {
+        root /usr/share/nginx/html;
+    }
+
+    # Proper Health Check Endpoint
+    location /healthz {
+        auth_basic off;
+        access_log off;
+        return 200 "OK\n";
+        add_header Content-Type text/plain;
+    }
+
+    # Root: Terminal
+    location / {
+        proxy_pass http://127.0.0.1:8081; # Internal ttyd port
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+    }
+
+    # OpenClaw WebUI
+    location /openclaw/ {
+        proxy_pass http://127.0.0.1:3000/; # Internal OpenClaw port
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+    }
+
+    # VS Code / Code-Server
+    location /ide/ {
+        proxy_pass http://127.0.0.1:8082;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+    }
+
+    # Ollama API (Optimized for speed)
+    location /ollama/ {
+        proxy_pass http://127.0.0.1:11434/;
+        proxy_http_version 1.1;
+        proxy_set_header Connection "keep-alive";
+        proxy_buffering off; # Immediately stream AI responses
+    }
+}
