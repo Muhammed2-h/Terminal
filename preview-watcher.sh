@@ -6,8 +6,8 @@ echo "Starting Dynamic Live Preview Watcher..."
 
 while true; do
     # Find listening TCP ports inside the container.
-    # We exclude our known system ports (main, ttyd, openclaw, ollama, dockerd).
-    NEW_PORT=$(ss -tlnH | awk '{print $4}' | awk -F':' '{print $NF}' | grep -vE '^(80|443|8080|8081|3000|11434|2375)$' | sort -n | head -n 1)
+    # We exclude our known system ports (main, ttyd, dockerd).
+    NEW_PORT=$(ss -tlnH | awk '{print $4}' | awk -F':' '{print $NF}' | grep -vE '^(80|443|8080|8081|2375)$' | sort -n | head -n 1)
 
     if [ "$NEW_PORT" != "$CURRENT_PORT" ]; then
         if [ -n "$NEW_PORT" ]; then
