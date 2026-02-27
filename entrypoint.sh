@@ -97,6 +97,10 @@ chmod +x /usr/local/bin/start-ttyd.sh
 # Generate AI & Tool Launchers based on variables
 cat <<'EOF' > /usr/local/bin/start-ollama.sh
 #!/bin/bash
+if ! command -v ollama &> /dev/null; then
+    echo "Ollama not found. Installing now..."
+    curl -fsSL https://ollama.com/install.sh | sh
+fi
 export OLLAMA_HOST="0.0.0.0"
 exec ollama serve
 EOF

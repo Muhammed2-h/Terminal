@@ -75,9 +75,6 @@ RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && \
     npm install -g npm@latest pnpm yarn pm2 && \
     rm -rf /var/lib/apt/lists/* && apt-get clean
 
-# Pre-install Ollama (installer script)
-RUN curl -fsSL https://ollama.com/install.sh | sh
-
 # Create essential directories
 RUN mkdir -p /var/log/supervisor
 
