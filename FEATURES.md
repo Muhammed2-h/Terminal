@@ -22,11 +22,11 @@ _The Magic_: If you install an extension in the Web IDE or run a build script in
 
 ---
 
-## 2. 🛡️ Global Zero-Trust Authenticator
+## 2. 🛡️ Global Zero-Trust Authenticator & Nginx Reverse Proxy
 
 ### Feature
 
-Instead of configuring passwords for every individual tool (VS Code, Nginx, Terminal, Previews), the entire cloud container is placed behind a strict impenetrable wall via Nginx `.htpasswd` Basic Auth.
+Instead of configuring isolated passwords for every individual tool (VS Code, Nginx, Terminal, Previews, API endpoints), the entire cloud container is placed behind a strict impenetrable wall via Nginx `.htpasswd` Basic Authentication. Nginx acts as the single entry point (Reverse Proxy) for all internal container services.
 
 ### How to Use
 
@@ -35,7 +35,7 @@ Set the following environment variables in your cloud provider:
 - `TERMINAL_USER=admin`
 - `TERMINAL_PASSWORD=yoursecretpassword`
 
-_The Magic_: This blocks automated port scanners from stealing your GPU cycles or accessing your database APIs. Nginx intercepts the traffic and drops malicious requests before they even hit the Python/Node runtimes.
+_The Magic_: When the container starts, the `entrypoint.sh` dynamically generates the `.htpasswd` file. Nginx intercepts all traffic on Port 8080. If an unauthenticated user or automated botnet scanner from the public web tries to hit your React app Preview, your Ollama API, or the VS Code UI, Nginx immediately throws a `401 Unauthorized` block and drops the packet. It never even reaches the internal Python/Node runtimes, securing your GPU cycles and source code completely. Nginx handles the SSL termination (if behind a load balancer), WebSocket `Upgrade` headers, and local proxying to ports `8081` (terminal), `8082` (VS Code), etc.
 
 ---
 
@@ -62,14 +62,15 @@ _The Magic_: When the container boots, the engine takes the temporary `/root` an
 
 ### Feature
 
-The hardest part about cloud development is seeing the web app you are building. If you are coding a React app and type `npm run dev`, it binds to port `5173`. How do you view it?
+The hardest part about cloud development is seeing the web app you are building. If you are coding a React app and type `npm run dev`, it binds to port `5173`. If you run a Python Flask app, it binds to `5000`. Normally, in a cloud container, you would have to expose and map each of these ports manually via Docker files or Cloud Provider dashboards to see them.
 
 ### How to Use
 
 1. In the terminal, start your app (e.g., `npm run dev` or `python -m http.server 8000`).
 2. Open a new browser tab and visit `https://yourdomain.com/preview/`.
 
-_The Magic_: The background daemon `preview-watcher.sh` automatically detects when you open a new TCP port and dynamically rewrites Nginx routing rules in real-time. Wait 3 seconds, and your React app is live on the internet instantly. Kill the terminal process, and the route drops automatically.
+_The Magic_: We wrote a background daemon called `preview-watcher.sh`. It continuously loops and parses the output of `ss -tlnp` to find any new TCP listening ports that don't belong to known system services (like Nginx, SSH, VS Code).
+When you type `npm run dev`, the script detects port `5173` within 3 seconds. It dynamically generates a new `/etc/nginx/conf.d/preview.conf` routing block that ties `location /preview/` to `proxy_pass http://127.0.0.1:5173`. Finally, it runs `nginx -s reload` without dropping active Terminal WebSocket connections. Your React app is live on the internet instantly, protected by Nginx Auth. Kill the terminal process, and the route drops automatically as Nginx is reloaded again.
 
 ---
 
@@ -105,11 +106,11 @@ _The Magic_: By default, AI is disabled to save cloud costs. When started manual
 
 ---
 
-## 7. ☁️ Cloudflare Tunnels (Bypass Firewalls)
+## 7. ☁️ Cloudflare Tunnels (Bypass Firewalls & CGNAT)
 
 ### Feature
 
-Sometimes you want to run this container locally on a cheap laptop under your desk, but access it globally from a fast URL without modifying your home router.
+Sometimes you want to run this container locally on a cheap laptop under your desk or a Raspberry Pi, but access it globally from a fast URL without modifying your home router, port-forwarding, or dealing with Carrier-Grade NAT (CGNAT) from your ISP.
 
 ### How to Use
 
@@ -117,7 +118,7 @@ Set the following environment variable:
 
 - `CLOUDFLARE_TOKEN=ey...`
 
-_The Magic_: Supervisor automatically spins up the `cloudflared` daemon. It creates a secure outbound HTTPS connection to Cloudflare's Edge network. Your container is now safely isolated from the public internet, but globally routing through Cloudflare's CDN.
+_The Magic_: When this variable is detected by Supervisor, it automatically spins up the `cloudflared` daemon in the background alongside Nginx. Rather than waiting for incoming traffic on port 8080 (which firewalls usually block), `cloudflared` creates a secure _outbound_ HTTPS connection to Cloudflare's Edge network. Cloudflare proxies the traffic securely from your public Cloudflare domain directly down into the container. Your container is completely invisible to the public internet, has no open open inbound ports, yet remains robustly accessible globally through Cloudflare's CDN.
 
 ---
 
@@ -136,17 +137,17 @@ _The Magic_: Supervisor starts an isolated Docker daemon (`dockerd`). You can no
 
 ---
 
-## 9. 🧱 Anti-DDoS & Botnet Protection
+## 9. 🧱 Anti-DDoS & Botnet Protection (Nginx Limit Zones)
 
 ### Feature
 
-The internet is filled with automated bots looking for exposed cloud infrastructure.
+The public internet is filled with automated bots scanning every IP address for weak points, trying brute-force password attacks, or simply launching Layer 7 Application DDoS attacks to run up your server bills.
 
 ### How to Use
 
-No configuration required. It works out of the box.
+No configuration required. It works out of the box entirely natively within the Nginx templating engine.
 
-_The Magic_: Nginx uses `limit_req_zone` memory banks. If an IP address attempts to guess your password or query the terminal more than 10 times a second, it triggers a "Burst Limit". Nginx immediately drops their connection packets, saving your CPU graph from spiking during an attack.
+_The Magic_: The container utilizes Nginx memory directives: `limit_req_zone $binary_remote_addr zone=terminal_limit:10m rate=10r/s;`. This maps 10 Megabytes of RAM to track IP addresses. If an attacker attempts to guess your password or send junk HTTP traffic to your terminal more than 10 times a second, it hits the `limit_req` directive. A short "Burst" is allowed for things like large file loads, but if it sustains, Nginx simply drops their connection packets instantly (returning 503 Service Unavailable). This happens at the very edge of the container in highly optimized C-code, completely sparing your Python processes and CPU usage graph from spiking during an attack.
 
 ---
 
