@@ -1,6 +1,6 @@
 # 🚀 Premium Cloud Ubuntu Terminal
 
-A production-grade, containerized Ubuntu LTS environment with persistent storage, web-based terminal access, and built-in support for AI tools (Ollama, OpenClaw).
+A production-grade, containerized Ubuntu LTS environment with persistent storage and web-based terminal access.
 
 ## ✨ Features
 
@@ -17,8 +17,7 @@ A production-grade, containerized Ubuntu LTS environment with persistent storage
 - **📊 Minimal UI Dashboards**: Fast, built-in CLI monitoring via `btop` and `nvtop` included.
 - **🔄 Auto-Updates**: Automatically performs `apt upgrade` on both build and container startup.
 - **💾 100% Persistence**: Data in `/root`, `/home`, and tool configs survive redeployments.
-- **🤖 AI Ready**: Pre-installed `Ollama` and `OpenClaw`. Start them manually on-demand to preserve cloud resources.
-- **🛡️ Global Zero-Trust Auth**: Replaced individual app logins with a global Nginx `.htpasswd` padlock. Protects **all** endpoints (Ollama, UI, Previews) simultaneously.
+- **🛡️ Global Zero-Trust Auth**: Replaced individual app logins with a global Nginx `.htpasswd` padlock. Protects **all** endpoints (UI, Previews) simultaneously.
 - **🧱 Anti-DDoS Rate Limiting**: Built-in `limit_req` zones drop malicious bot-nets attempting brute force attacks before they touch your CPU.
 - **🩺 Auto-healing**: Supervisor monitors and restarts failed processes.
 
@@ -77,7 +76,6 @@ docker build -t cloud-terminal .
 # Run with persistence
 docker run -p 8080:8080 \
   -e TERMINAL_PASSWORD=mysecret \
-  -e ENABLE_OLLAMA=true \
   -v ./local_data:/data \
   cloud-terminal
 ```

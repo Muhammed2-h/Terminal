@@ -89,23 +89,6 @@ _The Magic_: Nginx is configured to detect process failures. Instead of throwing
 
 ---
 
-## 6. 🤖 AI Readiness: Ollama & OpenClaw
-
-### Feature
-
-The container can run local Large Language Models using hardware acceleration.
-
-### How to Use
-
-1. **Start Ollama**: In your terminal, type `ollama serve`.
-2. **Access API**: Your local AI API becomes available securely at `https://yourdomain.com/ollama/`.
-3. **Start OpenClaw**: In your terminal, type `/usr/local/bin/start-openclaw.sh`. It will automatically clone and serve the UI on port 3000.
-4. **Hardware Acceleration**: The Docker image is built on `nvidia/cuda:12.2.2`. If your host has a GPU and you deploy using `--gpus all`, Ollama automatically utilizes the VRAM.
-
-_The Magic_: By default, AI is disabled to save cloud costs. When started manually, it securely multiplexes through Nginx, meaning you don't have to manage port bindings or firewall rules. Nginx also applies TCP optimizations and removes proxy buffering specifically for the `/ollama/` route so LLM tokens stream back to the UI instantaneously.
-
----
-
 ## 7. ☁️ Cloudflare Tunnels (Bypass Firewalls & CGNAT)
 
 ### Feature

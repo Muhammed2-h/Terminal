@@ -94,29 +94,7 @@ exec /usr/local/bin/ttyd -W -p 8081 -m "${MAX_CLIENTS}" tmux new-session -A -s m
 EOF
 chmod +x /usr/local/bin/start-ttyd.sh
 
-# Generate AI & Tool Launchers based on variables
-cat <<'EOF' > /usr/local/bin/start-ollama.sh
-#!/bin/bash
-if ! command -v ollama &> /dev/null; then
-    echo "Ollama not found. Installing now..."
-    curl -fsSL https://ollama.com/install.sh | sh
-fi
-export OLLAMA_HOST="0.0.0.0"
-exec ollama serve
-EOF
-chmod +x /usr/local/bin/start-ollama.sh
 
-cat <<'EOF' > /usr/local/bin/start-openclaw.sh
-#!/bin/bash
-if [ ! -d "/root/openclaw" ]; then
-    echo "Cloning OpenClaw..."
-    git clone https://github.com/the-claw-team/openclaw /root/openclaw
-    cd /root/openclaw && npm install
-fi
-cd /root/openclaw
-exec npm start
-EOF
-chmod +x /usr/local/bin/start-openclaw.sh
 
 cat <<'EOF' > /usr/local/bin/start-dockerd.sh
 #!/bin/bash
