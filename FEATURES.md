@@ -10,15 +10,16 @@ This document explains the advanced features built into the Cloud Terminal envir
 
 The container runs two simultaneous environments that share the exact same permissions, network, and file system.
 
-- **Web Terminal**: A raw, hardware-accelerated TTY terminal accessible via your browser. (Powered by `ttyd` and `tmux`).
+- **Web Terminal**: A raw, hardware-accelerated TTY terminal accessible via your browser. (Powered by `ttyd` + `zsh` with Oh My Zsh).
 - **Web IDE (VS Code)**: A full desktop-grade VS Code editor accessible via the browser. (Powered by `code-server`).
 
 ### How to Use
 
 1. **Access Terminal**: Visit `https://yourdomain.com/`
 2. **Access VS Code**: Visit `https://yourdomain.com/ide/`
+3. **Optional tmux**: Type `tmux` inside the terminal anytime for full session persistence across tab closes.
 
-_The Magic_: If you install an extension in the Web IDE or run a build script in the Web Terminal, the changes are perfectly synced because it is literally the same underlying Linux machine.
+_The Magic_: Both interfaces run on the same underlying Linux machine — installing an extension in VS Code or running a build in the terminal affects the exact same filesystem. The terminal launches a plain `zsh` shell for speed and simplicity. If you need your processes to survive closing the browser tab, simply type `tmux` or use the `persist` command (see Feature 6).
 
 ---
 
@@ -58,19 +59,56 @@ _The Magic_: When the container boots, the engine takes the temporary `/root` an
 
 ---
 
-## 4. 🔍 Dynamic "Live Preview" Auto-Proxy
+## 4. 🔍 Enhanced "Live Preview" System
 
 ### Feature
 
-The hardest part about cloud development is seeing the web app you are building. If you are coding a React app and type `npm run dev`, it binds to port `5173`. If you run a Python Flask app, it binds to `5000`. Normally, in a cloud container, you would have to expose and map each of these ports manually via Docker files or Cloud Provider dashboards to see them.
+The hardest part about cloud development is seeing the web app you are building. Start any web server in the terminal — React, Next.js, FastAPI, Flask, or a simple static server — and a premium preview panel appears automatically at `/preview/` with zero configuration.
 
 ### How to Use
 
-1. In the terminal, start your app (e.g., `npm run dev` or `python -m http.server 8000`).
-2. Open a new browser tab and visit `https://yourdomain.com/preview/`.
+1. In the terminal, start your app: `npm run dev`, `python -m http.server 3000`, `uvicorn app:app`, etc.
+2. Visit `https://yourdomain.com/preview/` in your browser.
+3. The panel detects your app within **2 seconds** and loads it in a full-height iframe.
 
-_The Magic_: We wrote a background daemon called `preview-watcher.sh`. It continuously loops and parses the output of `ss -tlnp` to find any new TCP listening ports that don't belong to known system services (like Nginx, SSH, VS Code).
-When you type `npm run dev`, the script detects port `5173` within 3 seconds. It dynamically generates a new `/etc/nginx/conf.d/preview.conf` routing block that ties `location /preview/` to `proxy_pass http://127.0.0.1:5173`. Finally, it runs `nginx -s reload` without dropping active Terminal WebSocket connections. Your React app is live on the internet instantly, protected by Nginx Auth. Kill the terminal process, and the route drops automatically as Nginx is reloaded again.
+**Optional — Pin a specific port** (useful if multiple ports are active):
+
+```
+PREVIEW_PORT=3000
+PREVIEW_APP_NAME=MyApp   # override the auto-detected app name
+```
+
+**Direct port forwarding** — access any port instantly without any configuration:
+
+```
+https://yourdomain.com/port/3000/
+https://yourdomain.com/port/8888/   # Jupyter Notebook, etc.
+```
+
+_The Magic_: The system is built in two layers:
+
+**Layer 1 — `preview-watcher.sh` daemon**: Runs continuously in the background (via Supervisor). Every 2 seconds it scans `ss -tlnp` for new listening TCP ports, excluding all known system ports. When a new port appears, it:
+
+- Inspects `/proc/<pid>/comm` and `cmdline` to detect the runtime and map it to a friendly name (`node` → `Next.js`/`Vite`, `python` → `FastAPI`/`Flask`/`Django`, `ruby`, `php`, etc.)
+- Writes a `preview.conf` nginx block routing `/preview/proxy/` to that port
+- Writes `/usr/share/nginx/html/preview/status.json` with `{"port":"3000","app":"Next.js"}`
+- Runs `nginx -s reload` without dropping active WebSocket connections
+
+Supports two modes:
+| Mode | Trigger | Behaviour |
+|------|---------|----------|
+| **Auto-scan** | No env set | Finds the lowest new listening TCP port automatically |
+| **Static pin** | `PREVIEW_PORT=3000` | Waits for exactly that port; reconnects if the app restarts |
+
+**Layer 2 — `preview.html` panel**: A premium dark-theme UI served at `/preview/` that:
+
+- Polls `status.json` every 2 seconds and updates the iframe live
+- Shows a **live status badge** with pulsing green dot when app is active
+- Displays the **detected app name** and active port in the toolbar
+- Provides a **Refresh** button and a **Popout** button (opens `/preview/proxy/` full-screen in new tab)
+- Shows a **no-app state** with ready-to-paste starter commands when nothing is running
+- Handles **error recovery** with a retry button
+- Automatically switches when the port changes (e.g. app restarts on a different port)
 
 ---
 
@@ -86,6 +124,55 @@ If you host a production Python API or Node.js server within this container, you
 2. If `server.js` throws a fatal exception, PM2 catches the error.
 
 _The Magic_: Nginx is configured to detect process failures. Instead of throwing a generic "Bad Gateway" white screen, Nginx routes the user to a stunning `502.html` dark-mode UI. It then reaches into PM2, extracts the actual programming Traceback, and prints the stack trace securely right in the browser.
+
+---
+
+## 6. ⚡ Process Persistence (Survive Tab Close)
+
+### Feature
+
+By default, closing the browser tab sends a `SIGHUP` signal to the shell, which kills all foreground child processes. This container solves this at multiple layers so your apps keep running even when you close the tab.
+
+### How to Use
+
+**Method 1 — `persist` command** (recommended for foreground apps):
+
+```bash
+persist npm run dev
+persist python app.py
+persist node server.js
+```
+
+Prints the PID and a log file path. Use `tail -f /tmp/persist-node-<PID>.log` to follow output. Kill with `kill <PID>`.
+
+**Method 2 — Background with `&`** (works automatically):
+
+```bash
+npm run dev &       # zsh NOHUP option protects this from tab-close SIGHUP
+disown              # optional: remove from job table
+```
+
+**Method 3 — tmux** (full session persistence):
+
+```bash
+tmux                # open a tmux session
+npm run dev         # run app inside tmux — tab close has zero effect
+# Ctrl+B, D to detach; come back anytime with: tmux attach
+```
+
+**Method 4 — `PERSIST_TMUX=true` env var** (admin opt-in, Railway/Docker):
+Set this in your cloud provider's environment variables. Every terminal session will automatically open inside a shared `tmux` session. Processes are 100% persistent — no user action required.
+
+**Useful aliases** available in the terminal:
+
+- `logs` — tail all `persist` background log files
+- `plist` — list running background processes with uptime
+
+_The Magic_: The persistence system works at three levels:
+
+1. **`setopt NOHUP` + `setopt NO_CHECK_JOBS`** in `.zshrc` — prevents zsh from forwarding `SIGHUP` to background jobs (`&`) when the shell exits. This is automatic for anything backgrounded.
+2. **`persist()` function** — uses `setsid` to create a completely new Linux process session, fully detached from the terminal PTY. The process becomes a child of PID 1 and cannot receive `SIGHUP` under any circumstances.
+3. **`PERSIST_TMUX=true`** — wraps `ttyd` with `tmux new-session -A -s main`. Since `tmux` is itself the process group leader and a proper session manager daemon, closing the WebSocket has zero effect on anything running inside it.
 
 ---
 
