@@ -88,8 +88,9 @@ COPY .zshrc.template /root/.zshrc.template
 COPY .tmux.conf.template /root/.tmux.conf.template
 COPY preview-watcher.sh /usr/local/bin/preview-watcher.sh
 COPY pm2-error-watcher.sh /usr/local/bin/pm2-error-watcher.sh
-RUN mkdir -p /usr/share/nginx/html
-COPY 502.html /usr/share/nginx/html/502.html
+RUN mkdir -p /usr/share/nginx/html/preview
+COPY 502.html     /usr/share/nginx/html/502.html
+COPY preview.html /usr/share/nginx/html/preview/preview.html
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh /usr/local/bin/preview-watcher.sh /usr/local/bin/pm2-error-watcher.sh
 

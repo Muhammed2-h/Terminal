@@ -83,15 +83,35 @@ htpasswd -bc /etc/nginx/.htpasswd "$TERMINAL_USER" "$TERMINAL_PASSWORD"
 echo "Configuring Nginx reverse proxy on port ${PORT}..."
 envsubst '${PORT}' < /root/nginx.conf.template > /etc/nginx/sites-available/default
 
-# Generate ttyd start command on internal port (8081) with TMUX persistence
-# Notice we omitted the -c (auth) flag here because Nginx now protects everything globally!
-echo "Configuring terminal on Internal Port: 8081 with TMUX Persistence"
+# Generate ttyd start command on internal port (8081)
+# Auth is handled globally by Nginx - no -c flag needed here.
+#
+# Process Persistence:
+#   - Default (PERSIST_TMUX unset):
+#     ttyd launches plain zsh. The .zshrc sets NOHUP so background jobs (&)
+#     survive tab close. Use `persist <cmd>` or `tmux` for foreground apps.
+#   - PERSIST_TMUX=true:
+#     ttyd wraps every session in tmux. Closing the tab NEVER kills processes.
+#     All users share the 'main' tmux session (multi-window).
+echo "Configuring terminal on Internal Port: 8081"
 
-cat <<EOF > /usr/local/bin/start-ttyd.sh
+if [ "${PERSIST_TMUX:-false}" = "true" ]; then
+    echo "  Mode: PERSIST_TMUX=true → tmux session persistence enabled"
+    cat <<EOF > /usr/local/bin/start-ttyd.sh
 #!/bin/bash
-# -A attaches to an existing session, -s 'main' is the session name
+# Attach to existing tmux session or create a new one.
+# SIGHUP from tab close never reaches user processes since tmux is the middleman.
 exec /usr/local/bin/ttyd -W -p 8081 -m "${MAX_CLIENTS}" tmux new-session -A -s main
 EOF
+else
+    echo "  Mode: plain zsh (use 'persist <cmd>' or 'tmux' for persistence)"
+    cat <<EOF > /usr/local/bin/start-ttyd.sh
+#!/bin/bash
+# Plain zsh shell. .zshrc configures NOHUP so background jobs survive tab close.
+# For foreground apps: run `persist npm run dev` or open tmux first.
+exec /usr/local/bin/ttyd -W -p 8081 -m "${MAX_CLIENTS}" zsh
+EOF
+fi
 chmod +x /usr/local/bin/start-ttyd.sh
 
 

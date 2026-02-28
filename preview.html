@@ -1,0 +1,414 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Live Preview — Cloud Terminal</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <style>
+      *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+      :root {
+        --bg:        #0d1117;
+        --surface:   #161b22;
+        --surface2:  #21262d;
+        --border:    #30363d;
+        --text:      #e6edf3;
+        --muted:     #8b949e;
+        --accent:    #58a6ff;
+        --green:     #3fb950;
+        --red:       #f85149;
+        --yellow:    #d29922;
+        --radius:    8px;
+        --toolbar-h: 52px;
+        --mono:      'JetBrains Mono', 'Courier New', monospace;
+        --sans:      'Inter', system-ui, sans-serif;
+      }
+
+      html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--sans); overflow: hidden; }
+
+      /* ── Toolbar ──────────────────────────────────────────────────── */
+      #toolbar {
+        position: fixed; top: 0; left: 0; right: 0;
+        height: var(--toolbar-h);
+        background: var(--surface);
+        border-bottom: 1px solid var(--border);
+        display: flex; align-items: center; gap: 8px; padding: 0 12px;
+        z-index: 100;
+        -webkit-backdrop-filter: blur(12px);
+        backdrop-filter: blur(12px);
+      }
+
+      #logo {
+        display: flex; align-items: center; gap: 8px;
+        font-size: 13px; font-weight: 600; color: var(--text);
+        white-space: nowrap; flex-shrink: 0;
+        -webkit-user-select: none;
+        user-select: none;
+      }
+      #logo svg { width: 22px; height: 22px; }
+
+      #divider { width: 1px; height: 28px; background: var(--border); flex-shrink: 0; }
+
+      /* Status badge */
+      #status-badge {
+        display: flex; align-items: center; gap: 6px;
+        padding: 4px 10px; border-radius: 20px;
+        font-size: 12px; font-weight: 500;
+        background: var(--surface2); border: 1px solid var(--border);
+        white-space: nowrap; flex-shrink: 0; transition: all 0.3s;
+      }
+      #status-dot {
+        width: 8px; height: 8px; border-radius: 50%;
+        background: var(--yellow); flex-shrink: 0;
+        transition: background 0.3s;
+      }
+      #status-badge.online  #status-dot { background: var(--green); box-shadow: 0 0 6px var(--green); animation: pulse-green 2s infinite; }
+      #status-badge.offline #status-dot { background: var(--red); }
+      #status-badge.waiting #status-dot { background: var(--yellow); animation: pulse-yellow 1.2s infinite; }
+
+      @keyframes pulse-green  { 0%,100% { box-shadow: 0 0 4px var(--green); } 50% { box-shadow: 0 0 10px var(--green); } }
+      @keyframes pulse-yellow { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+      /* URL bar */
+      #url-bar {
+        flex: 1; min-width: 0;
+        background: var(--surface2); border: 1px solid var(--border);
+        border-radius: 6px; padding: 0 12px;
+        height: 34px; display: flex; align-items: center; gap: 8px;
+        font-family: var(--mono); font-size: 12px; color: var(--muted);
+        cursor: default; overflow: hidden; transition: border-color 0.2s;
+      }
+      #url-bar:hover { border-color: var(--accent); }
+      #url-bar .url-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      #url-bar .url-prefix { color: var(--muted); flex-shrink: 0; }
+      #url-bar .url-path   { color: var(--text); }
+
+      /* App label */
+      #app-label {
+        font-size: 12px; color: var(--muted); font-family: var(--mono);
+        white-space: nowrap; flex-shrink: 0;
+      }
+      #app-name { color: var(--accent); font-weight: 500; }
+
+      /* Toolbar icon buttons */
+      .tb-btn {
+        width: 32px; height: 32px; border-radius: 6px; border: 1px solid var(--border);
+        background: var(--surface2); color: var(--muted); cursor: pointer;
+        display: flex; align-items: center; justify-content: center;
+        flex-shrink: 0; transition: all 0.15s;
+      }
+      .tb-btn:hover { background: var(--border); color: var(--text); border-color: var(--accent); }
+      .tb-btn:active { transform: scale(0.93); }
+      .tb-btn svg { width: 15px; height: 15px; }
+
+      #port-pill {
+        font-size: 11px; font-family: var(--mono); color: var(--muted);
+        background: var(--surface2); border: 1px solid var(--border);
+        padding: 3px 8px; border-radius: 12px; white-space: nowrap; flex-shrink: 0;
+      }
+      #port-pill span { color: var(--green); font-weight: 600; }
+
+      /* ── Content area ─────────────────────────────────────────────── */
+      #content {
+        position: fixed; top: var(--toolbar-h); left: 0; right: 0; bottom: 0;
+      }
+
+      /* Loading overlay */
+      #loading-overlay {
+        position: absolute; inset: 0; z-index: 10;
+        background: var(--bg);
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+        gap: 20px; transition: opacity 0.4s;
+      }
+      #loading-overlay.hidden { opacity: 0; pointer-events: none; }
+
+      .spinner-ring {
+        width: 56px; height: 56px;
+        border: 3px solid var(--border);
+        border-top-color: var(--accent);
+        border-radius: 50%;
+        animation: spin 0.9s linear infinite;
+      }
+      @keyframes spin { to { transform: rotate(360deg); } }
+
+      #loading-msg { font-size: 14px; color: var(--muted); text-align: center; line-height: 1.6; }
+      #loading-msg strong { color: var(--text); display: block; margin-bottom: 4px; font-size: 16px; }
+
+      #waiting-port { font-family: var(--mono); font-size: 12px; color: var(--yellow); margin-top: 4px; }
+
+      /* Error overlay */
+      #error-overlay {
+        position: absolute; inset: 0; z-index: 10;
+        background: var(--bg);
+        display: none; flex-direction: column; align-items: center; justify-content: center;
+        gap: 16px; padding: 32px;
+      }
+      #error-overlay.visible { display: flex; }
+      #error-icon { font-size: 48px; }
+      #error-msg { font-size: 15px; color: var(--muted); text-align: center; max-width: 400px; line-height: 1.6; }
+      #error-msg strong { color: var(--red); display: block; margin-bottom: 6px; font-size: 18px; }
+      #retry-btn {
+        padding: 10px 22px; border-radius: var(--radius);
+        background: var(--accent); color: #0d1117;
+        border: none; cursor: pointer; font-weight: 600; font-size: 14px;
+        transition: opacity 0.2s;
+      }
+      #retry-btn:hover { opacity: 0.85; }
+
+      /* The actual iframe */
+      #preview-frame {
+        width: 100%; height: 100%; border: none;
+        background: #fff;
+        opacity: 0; transition: opacity 0.4s;
+      }
+      #preview-frame.loaded { opacity: 1; }
+
+      /* No-app state */
+      #no-app {
+        position: absolute; inset: 0; z-index: 10;
+        display: none; flex-direction: column; align-items: center; justify-content: center;
+        gap: 24px; padding: 32px; text-align: center;
+      }
+      #no-app.visible { display: flex; }
+
+      .no-app-icon { font-size: 56px; opacity: 0.4; }
+      .no-app-title { font-size: 20px; font-weight: 600; color: var(--text); }
+      .no-app-sub { font-size: 14px; color: var(--muted); max-width: 480px; line-height: 1.7; }
+      .no-app-sub code { background: var(--surface2); padding: 1px 6px; border-radius: 4px; font-family: var(--mono); color: var(--accent); }
+
+      .hint-grid {
+        display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+        max-width: 560px; width: 100%; margin-top: 8px;
+      }
+      .hint-card {
+        background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+        padding: 14px 16px; text-align: left;
+      }
+      .hint-card .hint-label { font-size: 11px; color: var(--muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
+      .hint-card .hint-cmd { font-family: var(--mono); font-size: 12px; color: var(--green); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    </style>
+  </head>
+  <body>
+    <!-- ── Toolbar ── -->
+    <div id="toolbar">
+      <div id="logo">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="2" y="3" width="20" height="14" rx="2"/><polyline points="8 21 12 17 16 21"/>
+        </svg>
+        Live Preview
+      </div>
+
+      <div id="divider"></div>
+
+      <div id="status-badge" class="waiting">
+        <div id="status-dot"></div>
+        <span id="status-text">Waiting...</span>
+      </div>
+
+      <div id="url-bar" title="Preview URL">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+        <div class="url-text">
+          <span class="url-prefix" id="url-prefix">—</span>
+          <span class="url-path" id="url-path"></span>
+        </div>
+      </div>
+
+      <div id="port-pill">Port <span id="port-display">—</span></div>
+
+      <div id="app-label">App: <span id="app-name">—</span></div>
+
+      <button class="tb-btn" id="btn-reload" title="Reload preview">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+      </button>
+
+      <button class="tb-btn" id="btn-popout" title="Open in new tab">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+      </button>
+    </div>
+
+    <!-- ── Content ── -->
+    <div id="content">
+
+      <!-- Loading state -->
+      <div id="loading-overlay">
+        <div class="spinner-ring"></div>
+        <div id="loading-msg">
+          <strong>Waiting for your app...</strong>
+          Scanning for a listening port on the container.
+        </div>
+        <div id="waiting-port"></div>
+      </div>
+
+      <!-- No-app state -->
+      <div id="no-app">
+        <div class="no-app-icon">🚀</div>
+        <div class="no-app-title">No app running yet</div>
+        <div class="no-app-sub">
+          Start a web server in the terminal and it will appear here automatically.<br/>
+          You can also pin a specific port with <code>PREVIEW_PORT=3000</code>.
+        </div>
+        <div class="hint-grid">
+          <div class="hint-card">
+            <div class="hint-label">Node / Next.js</div>
+            <div class="hint-cmd">npm run dev</div>
+          </div>
+          <div class="hint-card">
+            <div class="hint-label">Python / FastAPI</div>
+            <div class="hint-cmd">uvicorn app:app --port 3000</div>
+          </div>
+          <div class="hint-card">
+            <div class="hint-label">Vite / React</div>
+            <div class="hint-cmd">npx vite --port 3000</div>
+          </div>
+          <div class="hint-card">
+            <div class="hint-label">Static / Any port</div>
+            <div class="hint-cmd">python -m http.server 3000</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Error state -->
+      <div id="error-overlay">
+        <div id="error-icon">⚡</div>
+        <div id="error-msg">
+          <strong>Preview failed to load</strong>
+          The app might be starting up, crashed, or serving on a different port.
+        </div>
+        <button id="retry-btn" onclick="reloadFrame()">↺ Retry</button>
+      </div>
+
+      <iframe id="preview-frame" title="Live preview of your running application" sandbox="allow-forms allow-modals allow-pointer-lock allow-popups allow-same-origin allow-scripts allow-top-navigation"></iframe>
+    </div>
+
+    <script>
+      const frame     = document.getElementById('preview-frame');
+      const loadingEl = document.getElementById('loading-overlay');
+      const noAppEl   = document.getElementById('no-app');
+      const errorEl   = document.getElementById('error-overlay');
+      const statusBadge = document.getElementById('status-badge');
+      const statusText  = document.getElementById('status-text');
+      const statusDot   = document.getElementById('status-dot');
+      const portDisplay  = document.getElementById('port-display');
+      const appNameEl   = document.getElementById('app-name');
+      const urlPrefix   = document.getElementById('url-prefix');
+      const urlPath     = document.getElementById('url-path');
+      const waitingPort = document.getElementById('waiting-port');
+
+      let currentPort = null;
+      let pollTimer   = null;
+      let loadTimeout = null;
+
+      // ── Helpers ──────────────────────────────────────────────────────
+      function setStatus(state, text) {
+        statusBadge.className = state;
+        statusText.textContent = text;
+      }
+
+      function showState(which) {
+        loadingEl.classList.toggle('hidden',   which !== 'loading');
+        noAppEl.classList.toggle('visible',    which === 'noapp');
+        errorEl.classList.toggle('visible',    which === 'error');
+        frame.classList.toggle('loaded',       which === 'loaded');
+      }
+
+      function updateUrlBar(port) {
+        const base = window.location.origin;
+        urlPrefix.textContent = base;
+        urlPath.textContent   = `/preview/proxy/`;
+      }
+
+      // ── Frame loading ─────────────────────────────────────────────────
+      function loadFrame(port, appName) {
+        clearTimeout(loadTimeout);
+        showState('loading');
+        setStatus('waiting', 'Connecting...');
+        updateUrlBar(port);
+        portDisplay.textContent = port;
+        appNameEl.textContent   = appName || 'unknown';
+
+        frame.src = '/preview/proxy/';
+
+        // Timeout if frame doesn't load in 12s (likely blocked by X-Frame-Options)
+        loadTimeout = setTimeout(() => {
+          setStatus('online', `Port ${port} active`);
+          showState('loaded');   // show it anyway, might be a CSP-blank frame
+        }, 3000);
+      }
+
+      frame.addEventListener('load', () => {
+        clearTimeout(loadTimeout);
+        try {
+          // see if it actually loaded something (will throw for cross-origin)
+          const title = frame.contentDocument?.title;
+        } catch(e) {}
+        setStatus('online', `Port ${currentPort} active`);
+        showState('loaded');
+      });
+
+      frame.addEventListener('error', () => {
+        clearTimeout(loadTimeout);
+        setStatus('offline', 'Load failed');
+        showState('error');
+      });
+
+      // ── Buttons ───────────────────────────────────────────────────────
+      document.getElementById('btn-reload').addEventListener('click', reloadFrame);
+      document.getElementById('btn-popout').addEventListener('click', () => {
+        window.open('/preview/proxy/', '_blank');
+      });
+
+      function reloadFrame() {
+        if (currentPort) {
+          frame.src = '/preview/proxy/?_t=' + Date.now();
+          showState('loading');
+          setStatus('waiting', 'Reloading...');
+        }
+      }
+
+      // ── Status polling ────────────────────────────────────────────────
+      // Polls /preview/status.json every 2 seconds — generated by preview-watcher.sh
+      async function poll() {
+        try {
+          const res = await fetch('/preview/status.json?_t=' + Date.now(), { cache: 'no-store' });
+          if (!res.ok) throw new Error('no status');
+          const data = await res.json();
+
+          if (data.port && data.port !== currentPort) {
+            currentPort = data.port;
+            loadFrame(data.port, data.app);
+          } else if (!data.port && currentPort) {
+            // App went offline
+            currentPort = null;
+            frame.src   = 'about:blank';
+            setStatus('offline', 'App stopped');
+            showState('noapp');
+            portDisplay.textContent = '—';
+            appNameEl.textContent   = '—';
+            urlPrefix.textContent   = '—';
+            urlPath.textContent     = '';
+          } else if (!data.port && !currentPort) {
+            // Still waiting
+            setStatus('waiting', 'Waiting...');
+            showState(frame.src && frame.src !== 'about:blank' ? 'loaded' : 'noapp');
+            if (data.scanning) {
+              waitingPort.textContent = '⟳ Scanning ports...';
+            } else if (data.waiting_for) {
+              waitingPort.textContent = `⏳ Waiting on port ${data.waiting_for}`;
+            }
+          }
+        } catch (e) {
+          // Status endpoint not yet available — keep showing loader
+        }
+        pollTimer = setTimeout(poll, 2000);
+      }
+
+      // ── Init ─────────────────────────────────────────────────────────
+      showState('loading');
+      setStatus('waiting', 'Initializing...');
+      poll();
+    </script>
+  </body>
+</html>

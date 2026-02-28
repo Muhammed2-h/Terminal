@@ -18,52 +18,101 @@ server {
     add_header X-XSS-Protection "1; mode=block";
     add_header X-Content-Type-Options "nosniff";
 
-    # Global performance optimizations for internal API speed
+    # Global performance optimizations
     tcp_nodelay on;
-    tcp_nopush on;
+    tcp_nopush  on;
     keepalive_timeout 65;
-    
-    # Standard proxy headers
-    proxy_set_header Host $host;
-    proxy_set_header X-Real-IP $remote_addr;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+
+    # Long timeout for WebSocket & long-polling connections
+    proxy_read_timeout 86400;
+    proxy_send_timeout 86400;
+    proxy_buffering    off;
+
+    # Standard proxy headers (inherited by all proxy_pass blocks)
+    proxy_set_header Host              $host;
+    proxy_set_header X-Real-IP         $remote_addr;
+    proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
 
-    # Dynamic Preview Inclusion
-    include /etc/nginx/conf.d/*.conf;
+    # ── Health Check ──────────────────────────────────────────────────────────
+    location /healthz {
+        auth_basic  off;
+        access_log  off;
+        return 200  "OK\n";
+        add_header  Content-Type text/plain;
+    }
 
-    # Custom Auto-Scaling 502 Page (Worker Crashed)
+    # ── Custom 502 Page ───────────────────────────────────────────────────────
     error_page 502 /502.html;
     location = /502.html {
-        root /usr/share/nginx/html;
+        root     /usr/share/nginx/html;
         internal;
     }
-    # Expose the PM2 traceback log to the 502 page
     location = /pm2-error.log {
         root /usr/share/nginx/html;
     }
 
-    # Proper Health Check Endpoint
-    location /healthz {
-        auth_basic off;
-        access_log off;
-        return 200 "OK\n";
-        add_header Content-Type text/plain;
+    # ── Live Preview UI (/preview) ────────────────────────────────────────────
+    # Serves the premium preview panel HTML page
+    location = /preview {
+        return 301 /preview/;
+    }
+    location = /preview/ {
+        root      /usr/share/nginx/html;
+        try_files /preview/preview.html =404;
+        add_header Cache-Control "no-cache";
     }
 
-    # Root: Terminal
+    # Preview status JSON (polled by preview.html every 2s)
+    location = /preview/status.json {
+        root       /usr/share/nginx/html;
+        add_header Cache-Control "no-cache, no-store";
+        add_header Access-Control-Allow-Origin "*";
+    }
+
+    # Preview static assets (CSS/JS if any)
+    location /preview/assets/ {
+        root /usr/share/nginx/html;
+    }
+
+    # ── Preview Proxy — dynamic include from preview-watcher.sh ───────────────
+    # /preview/proxy/ → http://127.0.0.1:<detected-port>/
+    # This block is REPLACED by /etc/nginx/conf.d/preview.conf when a port is up.
+    # If no app is running, returns a friendly JSON 503.
+    include /etc/nginx/conf.d/*.conf;
+
+    location /preview/proxy/ {
+        return 503 '{"error":"no_app","message":"No app is currently running. Start a web server in the terminal."}';
+        add_header Content-Type application/json;
+    }
+
+    # ── Direct Port Forwarding: /port/<N>/ → localhost:<N> ────────────────────
+    # Instantly access any port by number, no config needed.
+    # Example: https://your-app.railway.app/port/3000/
+    location ~ ^/port/(?<fwd_port>[0-9]+)(/.*)?$ {
+        proxy_pass         http://127.0.0.1:$fwd_port$2$is_args$args;
+        proxy_http_version 1.1;
+        proxy_set_header   Upgrade    $http_upgrade;
+        proxy_set_header   Connection "upgrade";
+        proxy_set_header   Host       $host;
+        proxy_set_header   X-Real-IP  $remote_addr;
+        proxy_read_timeout 86400;
+        proxy_buffering    off;
+    }
+
+    # ── Root: Terminal (ttyd) ─────────────────────────────────────────────────
     location / {
-        proxy_pass http://127.0.0.1:8081; # Internal ttyd port
+        proxy_pass         http://127.0.0.1:8081;
         proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
+        proxy_set_header   Upgrade    $http_upgrade;
+        proxy_set_header   Connection "upgrade";
     }
 
-    # VS Code / Code-Server
+    # ── VS Code / Code-Server ─────────────────────────────────────────────────
     location /ide/ {
-        proxy_pass http://127.0.0.1:8082;
+        proxy_pass         http://127.0.0.1:8082;
         proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
+        proxy_set_header   Upgrade    $http_upgrade;
+        proxy_set_header   Connection "upgrade";
     }
 }
