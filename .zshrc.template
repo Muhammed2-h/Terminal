@@ -14,8 +14,9 @@ source $ZSH/oh-my-zsh.sh
 
 # ── Path ──────────────────────────────────────────────────────────────────────
 # Always export full PATH so globally installed tools work in `persist`, setsid, etc.
+# Static paths only — no subshells here, they would hang the terminal on startup.
+# Node.js (nodesource) global bin is always /usr/local/bin on Ubuntu.
 export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-export PATH="$PATH:$(npm root -g 2>/dev/null | sed 's|/node_modules||')/.bin"
 export PATH="$PATH:$HOME/.local/bin"          # pip --user installs
 export PATH="$PATH:$HOME/.cargo/bin"          # Rust/cargo installs
 
