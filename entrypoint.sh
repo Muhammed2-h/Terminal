@@ -51,15 +51,35 @@ persist_dir() {
 persist_dir "/root" "/data/root"
 persist_dir "/home" "/data/home"
 
-# Install Premium Configs if not present
-if [ ! -f "/root/.zshrc" ]; then
-    echo "Installing Premium Zsh Config..."
-    cp /root/.zshrc.template /root/.zshrc
+# Smart-merge .zshrc: overwrite the system portion from the template but preserve
+# anything the user has added between # BEGIN USER CONFIG / # END USER CONFIG markers.
+# This ensures:
+#   - Background persistence (setopt NOHUP) and aliases always reflect the latest image
+#   - User's own aliases / exports / functions survive redeploys unchanged
+echo "Applying latest terminal configs from templates..."
+
+if [ -f "/root/.zshrc" ]; then
+    # Extract everything between the user-custom markers
+    USER_BLOCK=$(awk '/# BEGIN USER CONFIG/{found=1} found{print} /# END USER CONFIG/{found=0}' /root/.zshrc 2>/dev/null || true)
+else
+    USER_BLOCK=""
 fi
-if [ ! -f "/root/.tmux.conf" ]; then
-    echo "Installing Premium Tmux Config..."
-    cp /root/.tmux.conf.template /root/.tmux.conf
+
+# Write the fresh system config from the template
+cp -f /root/.zshrc.template /root/.zshrc
+
+# Re-inject the user block if it was non-empty (replace the blank markers from template)
+if [ -n "$USER_BLOCK" ]; then
+    # Remove the blank marker lines from the template
+    awk 'BEGIN{skip=0} /# BEGIN USER CONFIG/{skip=1;print;next} /# END USER CONFIG/{skip=0} !skip{print}' /root/.zshrc > /tmp/.zshrc.tmp
+    # Append the preserved user block
+    echo "" >> /tmp/.zshrc.tmp
+    echo "$USER_BLOCK" >> /tmp/.zshrc.tmp
+    mv /tmp/.zshrc.tmp /root/.zshrc
 fi
+
+cp -f /root/.tmux.conf.template /root/.tmux.conf
+echo "  ✅ .zshrc (system+user) and .tmux.conf updated."
 
 # Automated "Dotfiles" Bootstrapper
 if [ -n "$DOTFILES_REPO" ]; then

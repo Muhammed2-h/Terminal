@@ -1,13 +1,23 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # Oh My Zsh Configuration — Cloud Terminal
 # ─────────────────────────────────────────────────────────────────────────────
+
+# Guard: if the shell spawns inside an invalid/deleted directory (e.g. during
+# the /root → /data/root symlink migration), silently recover to home.
+# This eliminates the "no such file or directory" prompt on new terminal tabs.
+[[ -d "$PWD" ]] || cd ~
+
 export ZSH="$HOME/.oh-my-zsh"
 ZSH_THEME="robbyrussell"
 plugins=(git zsh-autosuggestions zsh-syntax-highlighting)
 source $ZSH/oh-my-zsh.sh
 
 # ── Path ──────────────────────────────────────────────────────────────────────
-export PATH=$PATH:/usr/local/bin
+# Always export full PATH so globally installed tools work in `persist`, setsid, etc.
+export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+export PATH="$PATH:$(npm root -g 2>/dev/null | sed 's|/node_modules||')/.bin"
+export PATH="$PATH:$HOME/.local/bin"          # pip --user installs
+export PATH="$PATH:$HOME/.cargo/bin"          # Rust/cargo installs
 
 # ── Background Process Persistence ───────────────────────────────────────────
 # Prevent zsh from sending SIGHUP to background jobs when the shell exits.
@@ -81,3 +91,9 @@ _cloud_motd() {
     fi
 }
 _cloud_motd
+
+# ── User Custom Config ────────────────────────────────────────────────────────
+# Everything between BEGIN/END USER CONFIG is preserved across redeploys.
+# Add your own aliases, exports, functions here.
+# BEGIN USER CONFIG
+# END USER CONFIG
