@@ -7,18 +7,23 @@
 # This eliminates the "no such file or directory" prompt on new terminal tabs.
 [[ -d "$PWD" ]] || cd ~
 
+# ── Path (set BEFORE loading OMZ so it can build on top of these) ────────────
+# Append extra bins. Never fully replace PATH — OMZ and zsh need what's already there.
+export PATH="$PATH:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+export PATH="$PATH:$HOME/.local/bin"          # pip --user installs
+export PATH="$PATH:$HOME/.cargo/bin"          # Rust/cargo installs
+
+# ── Disable Oh My Zsh auto-update ─────────────────────────────────────────────
+# OMZ checks for updates by running `git fetch` on ~/.oh-my-zsh at shell startup.
+# Since ~/.oh-my-zsh lives on /data (Railway network volume), this HANGS the shell.
+# Always disable it — update OMZ manually with `omz update` if needed.
+DISABLE_AUTO_UPDATE="true"
+DISABLE_UPDATE_PROMPT="true"
+
 export ZSH="$HOME/.oh-my-zsh"
 ZSH_THEME="robbyrussell"
 plugins=(git zsh-autosuggestions zsh-syntax-highlighting)
 source $ZSH/oh-my-zsh.sh
-
-# ── Path ──────────────────────────────────────────────────────────────────────
-# Always export full PATH so globally installed tools work in `persist`, setsid, etc.
-# Static paths only — no subshells here, they would hang the terminal on startup.
-# Node.js (nodesource) global bin is always /usr/local/bin on Ubuntu.
-export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-export PATH="$PATH:$HOME/.local/bin"          # pip --user installs
-export PATH="$PATH:$HOME/.cargo/bin"          # Rust/cargo installs
 
 # ── Background Process Persistence ───────────────────────────────────────────
 # Prevent zsh from sending SIGHUP to background jobs when the shell exits.
