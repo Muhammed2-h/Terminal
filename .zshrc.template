@@ -1,41 +1,64 @@
 # ─────────────────────────────────────────────────────────────────────────────
-# Oh My Zsh Configuration — Cloud Terminal
+# Cloud Terminal — Zsh Configuration
 # ─────────────────────────────────────────────────────────────────────────────
 
-# Guard: if the shell spawns inside an invalid/deleted directory (e.g. during
-# the /root → /data/root symlink migration), silently recover to home.
-# This eliminates the "no such file or directory" prompt on new terminal tabs.
+# ── Guard: recover silently from invalid CWD (e.g. after /root symlink swap) ──
 [[ -d "$PWD" ]] || cd ~
 
-# ── Path (set BEFORE loading OMZ so it can build on top of these) ────────────
-# Append extra bins. Never fully replace PATH — OMZ and zsh need what's already there.
+# ── Path ──────────────────────────────────────────────────────────────────────
+# Append extras — never fully replace PATH; OMZ/zsh build on it.
+# Static paths ONLY — no subshells ($(...)) here; they would hang startup.
 export PATH="$PATH:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-export PATH="$PATH:$HOME/.local/bin"          # pip --user installs
-export PATH="$PATH:$HOME/.cargo/bin"          # Rust/cargo installs
+export PATH="$PATH:$HOME/.local/bin"    # pip --user installs
+export PATH="$PATH:$HOME/.cargo/bin"    # Rust/cargo installs
 
-# ── Disable Oh My Zsh auto-update ─────────────────────────────────────────────
-# OMZ checks for updates by running `git fetch` on ~/.oh-my-zsh at shell startup.
-# Since ~/.oh-my-zsh lives on /data (Railway network volume), this HANGS the shell.
-# Always disable it — update OMZ manually with `omz update` if needed.
+# ── Oh My Zsh performance guards (MUST come before source $ZSH/oh-my-zsh.sh) ─
+#
+# WHY these matter on Railway / network volumes:
+#
+#  DISABLE_AUTO_UPDATE  → OMZ's updater runs `git fetch` on ~/.oh-my-zsh every
+#                         few days. Since ~/.oh-my-zsh lives on /data (a network
+#                         volume), this blocks the entire shell startup for 10-60s.
+#
+#  'git' plugin removed → The git plugin + robbyrussell theme call `git status`
+#                         on EVERY prompt render (after every command). On /data
+#                         this makes the shell appear frozen after each keypress.
+#
 DISABLE_AUTO_UPDATE="true"
 DISABLE_UPDATE_PROMPT="true"
+DISABLE_MAGIC_FUNCTIONS="true"       # faster paste; avoids URL-quoting hangs
+DISABLE_UNTRACKED_FILES_DIRTY="true" # skip untracked-file scan in git status
+ZSH_DISABLE_COMPFIX="true"           # skip slow compaudit security check
 
 export ZSH="$HOME/.oh-my-zsh"
-ZSH_THEME="robbyrussell"
-plugins=(git zsh-autosuggestions zsh-syntax-highlighting)
+
+# No theme — we set a custom fast prompt below that NEVER calls git
+ZSH_THEME=""
+
+# Plugins: git plugin REMOVED (it scans repos on every prompt = hangs)
+# zsh-autosuggestions + zsh-syntax-highlighting are safe; they read local memory
+plugins=(zsh-autosuggestions zsh-syntax-highlighting)
+
 source $ZSH/oh-my-zsh.sh
+
+# ── Custom prompt (instant — zero filesystem or git calls) ────────────────────
+# Format:  ❯ ~/your/path $
+# Colors:  green arrow, bold cyan path
+autoload -Uz promptinit && promptinit
+PROMPT='%F{82}❯%f %B%F{81}%~%f%b '
+RPROMPT=''
 
 # ── Background Process Persistence ───────────────────────────────────────────
 # Prevent zsh from sending SIGHUP to background jobs when the shell exits.
-# This means anything you run with `&` or `nohup` will survive tab close.
+# Anything run with `&` will survive tab close automatically.
 setopt NOHUP
 setopt NO_CHECK_JOBS
 
-# ── persist: Run any command detached from this terminal ─────────────────────
-# Usage: persist <command> [args...]
+# ── persist: Run any command fully detached from this terminal ────────────────
+# Usage:   persist <command> [args...]
 # Example: persist npm run dev
 # Example: persist python app.py
-# Logs are written to /tmp/persist-<name>.log
+# Logs:    tail -f /tmp/persist-<name>.log
 persist() {
     if [ $# -eq 0 ]; then
         echo "Usage: persist <command> [args...]"
@@ -46,8 +69,8 @@ persist() {
     name=$(basename "$1" 2>/dev/null || echo "$1")
     local logfile="/tmp/persist-${name}-$$.log"
 
-    # setsid creates a brand-new session — fully detached from the PTY.
-    # The process will NOT receive SIGHUP when the browser tab closes.
+    # setsid creates a brand-new Linux session fully detached from the PTY.
+    # The process becomes a child of PID 1 and cannot receive SIGHUP ever.
     setsid "$@" > "$logfile" 2>&1 &
     local pid=$!
     disown "$pid"
@@ -100,6 +123,6 @@ _cloud_motd
 
 # ── User Custom Config ────────────────────────────────────────────────────────
 # Everything between BEGIN/END USER CONFIG is preserved across redeploys.
-# Add your own aliases, exports, functions here.
+# Add your own aliases, exports, or functions below this line.
 # BEGIN USER CONFIG
 # END USER CONFIG
