@@ -53,33 +53,31 @@ persist_dir "/home" "/data/home"
 
 # Smart-merge .zshrc: overwrite the system portion from the template but preserve
 # anything the user has added between # BEGIN USER CONFIG / # END USER CONFIG markers.
-# This ensures:
-#   - Background persistence (setopt NOHUP) and aliases always reflect the latest image
-#   - User's own aliases / exports / functions survive redeploys unchanged
-echo "Applying latest terminal configs from templates..."
+#
+# CRITICAL: We read from /etc/cloud-terminal/zshrc.template (baked fresh into every
+# Docker image, outside of /root so it is NEVER persisted to /data).
+# Reading from /root/.zshrc.template would silently use the OLD stale version from
+# the volume — that was why every previous .zshrc fix was invisible.
+echo "Applying latest terminal configs from image templates..."
+TEMPLATE_DIR="/etc/cloud-terminal"
 
 if [ -f "/root/.zshrc" ]; then
-    # Extract everything between the user-custom markers
     USER_BLOCK=$(awk '/# BEGIN USER CONFIG/{found=1} found{print} /# END USER CONFIG/{found=0}' /root/.zshrc 2>/dev/null || true)
 else
     USER_BLOCK=""
 fi
 
-# Write the fresh system config from the template
-cp -f /root/.zshrc.template /root/.zshrc
+cp -f "${TEMPLATE_DIR}/zshrc.template" /root/.zshrc
 
-# Re-inject the user block if it was non-empty (replace the blank markers from template)
 if [ -n "$USER_BLOCK" ]; then
-    # Remove the blank marker lines from the template
     awk 'BEGIN{skip=0} /# BEGIN USER CONFIG/{skip=1;print;next} /# END USER CONFIG/{skip=0} !skip{print}' /root/.zshrc > /tmp/.zshrc.tmp
-    # Append the preserved user block
     echo "" >> /tmp/.zshrc.tmp
     echo "$USER_BLOCK" >> /tmp/.zshrc.tmp
     mv /tmp/.zshrc.tmp /root/.zshrc
 fi
 
-cp -f /root/.tmux.conf.template /root/.tmux.conf
-echo "  ✅ .zshrc (system+user) and .tmux.conf updated."
+cp -f "${TEMPLATE_DIR}/tmux.conf.template" /root/.tmux.conf
+echo "  ✅ .zshrc and .tmux.conf updated from fresh image templates."
 
 # Automated "Dotfiles" Bootstrapper
 if [ -n "$DOTFILES_REPO" ]; then

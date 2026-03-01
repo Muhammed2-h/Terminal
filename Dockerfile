@@ -76,7 +76,7 @@ RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && \
     rm -rf /var/lib/apt/lists/* && apt-get clean
 
 # Create essential directories
-RUN mkdir -p /var/log/supervisor
+RUN mkdir -p /var/log/supervisor /etc/cloud-terminal
 
 # Set up workspace
 WORKDIR /root
@@ -84,7 +84,12 @@ WORKDIR /root
 # Copy configuration files
 COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 COPY nginx.conf.template /root/nginx.conf.template
-COPY .zshrc.template /root/.zshrc.template
+# Templates stored in /etc/cloud-terminal/ — outside /root so they are NEVER
+# persisted to /data. On every redeploy the container gets the fresh image version.
+# /root/.zshrc.template is kept only as a fallback for manual inspection.
+COPY .zshrc.template    /etc/cloud-terminal/zshrc.template
+COPY .tmux.conf.template /etc/cloud-terminal/tmux.conf.template
+COPY .zshrc.template    /root/.zshrc.template
 COPY .tmux.conf.template /root/.tmux.conf.template
 COPY preview-watcher.sh /usr/local/bin/preview-watcher.sh
 COPY pm2-error-watcher.sh /usr/local/bin/pm2-error-watcher.sh
