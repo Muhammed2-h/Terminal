@@ -104,13 +104,9 @@ server {
     }
 
     # ── Root: Terminal (ttyd) ─────────────────────────────────────────────────
-    # Rate limiting is EXCLUDED here — this is a persistent WebSocket connection.
-    # Applying limit_req here would throttle every WebSocket frame as an HTTP
-    # request, causing constant disconnects and dropped keystrokes.
+    # No rate limiting here — the global limit_req was intentionally removed
+    # from this server block. WebSocket terminal frames must never be throttled.
     location / {
-        # Exempt from rate limiting
-        limit_req off;
-
         proxy_pass             http://127.0.0.1:8081;
         proxy_http_version     1.1;
 
@@ -133,8 +129,6 @@ server {
 
     # ── VS Code / Code-Server ─────────────────────────────────────────────────
     location /ide/ {
-        limit_req off;
-
         proxy_pass             http://127.0.0.1:8082;
         proxy_http_version     1.1;
         proxy_set_header       Upgrade    $http_upgrade;

@@ -115,7 +115,9 @@ ENV OLLAMA_MODEL=llama3
 EXPOSE ${PORT}
 
 # Healthcheck
-HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:${PORT}/healthz || exit 1
+# Use ${PORT:-8080} so the healthcheck works whether Railway overrides PORT or not.
+# start-period=30s gives supervisord + nginx enough time to fully start.
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=5 \
+    CMD curl -f http://localhost:${PORT:-8080}/healthz || exit 1
 
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
