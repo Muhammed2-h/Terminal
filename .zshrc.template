@@ -29,11 +29,25 @@ DISABLE_UPDATE_PROMPT="true"
 DISABLE_MAGIC_FUNCTIONS="true"       # faster paste; avoids URL-quoting hangs
 DISABLE_UNTRACKED_FILES_DIRTY="true" # skip untracked-file scan in git status
 ZSH_DISABLE_COMPFIX="true"           # skip slow compaudit security check
+skip_global_compinit=1               # skip compinit entirely on startup (FAST)
 
 export ZSH="$HOME/.oh-my-zsh"
 
 # No theme — we set a custom fast prompt below that NEVER calls git
 ZSH_THEME=""
+
+# ── Plugin Guard: ensure plugins exist locally before sourcing OMZ ────────────
+# /root is a symlink to /data (network volume). If plugins are missing on the
+# volume, fall back to the baked image copy. Zero network calls either way.
+_OMZ_PLUGIN_DIR="${HOME}/.oh-my-zsh/custom/plugins"
+_OMZ_BAKED="/etc/cloud-terminal/omz-plugins"
+for _plugin in zsh-autosuggestions zsh-syntax-highlighting; do
+    if [ ! -d "${_OMZ_PLUGIN_DIR}/${_plugin}" ] && [ -d "${_OMZ_BAKED}/${_plugin}" ]; then
+        mkdir -p "${_OMZ_PLUGIN_DIR}"
+        cp -r "${_OMZ_BAKED}/${_plugin}" "${_OMZ_PLUGIN_DIR}/" 2>/dev/null
+    fi
+done
+unset _OMZ_PLUGIN_DIR _OMZ_BAKED _plugin
 
 # Plugins: git plugin REMOVED (it scans repos on every prompt = hangs)
 # zsh-autosuggestions + zsh-syntax-highlighting are safe; they read local memory

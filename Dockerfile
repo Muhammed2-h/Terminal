@@ -48,8 +48,13 @@ RUN curl -fsSL https://code-server.dev/install.sh | sh
 
 # Install Oh My Zsh for a premium terminal feel
 RUN sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended && \
-    git clone https://github.com/zsh-users/zsh-autosuggestions ${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/zsh-autosuggestions && \
-    git clone https://github.com/zsh-users/zsh-syntax-highlighting.git ${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/zsh-syntax-highlighting
+    git clone --depth=1 https://github.com/zsh-users/zsh-autosuggestions ~/.oh-my-zsh/custom/plugins/zsh-autosuggestions && \
+    git clone --depth=1 https://github.com/zsh-users/zsh-syntax-highlighting.git ~/.oh-my-zsh/custom/plugins/zsh-syntax-highlighting && \
+    # Back up plugins into /etc/cloud-terminal/omz-plugins so entrypoint.sh can \
+    # restore them to /data/root without any network access on a fresh volume. \
+    mkdir -p /etc/cloud-terminal/omz-plugins && \
+    cp -r ~/.oh-my-zsh/custom/plugins/zsh-autosuggestions /etc/cloud-terminal/omz-plugins/ && \
+    cp -r ~/.oh-my-zsh/custom/plugins/zsh-syntax-highlighting /etc/cloud-terminal/omz-plugins/
 
 # Set ZSH as default shell for root
 RUN chsh -s $(which zsh)

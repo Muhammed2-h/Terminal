@@ -12,9 +12,9 @@ else
     export OLLAMA_GPU=false
 fi
 
-# Automatic System Updates (Security)
-echo "Checking for system updates..."
-apt-get update && apt-get upgrade -y && apt-get clean && rm -rf /var/lib/apt/lists/*
+# NOTE: apt-get upgrade is intentionally NOT run here.
+# Running it on every boot blocks startup for 30-120 seconds.
+# Bake updated packages into a new Docker image instead.
 
 # Ensure /data exists (this should be the mounted volume)
 mkdir -p /data/root /data/home
@@ -78,6 +78,21 @@ fi
 
 cp -f "${TEMPLATE_DIR}/tmux.conf.template" /root/.tmux.conf
 echo "  ✅ .zshrc and .tmux.conf updated from fresh image templates."
+
+# ── Ensure OMZ custom plugins are present on the volume ───────────────────────
+# /root is symlinked to /data/root (a network volume). If the plugins were baked
+# into the image under /root they got copied to /data/root during persist_dir above.
+# But on a fresh volume they may be missing. We keep a baked backup in
+# /etc/cloud-terminal/omz-plugins/ and restore it if needed — zero network calls.
+OMZ_CUSTOM="/root/.oh-my-zsh/custom/plugins"
+for plugin in zsh-autosuggestions zsh-syntax-highlighting; do
+    if [ ! -d "${OMZ_CUSTOM}/${plugin}" ]; then
+        echo "  ⚡ Restoring OMZ plugin from image: ${plugin}"
+        mkdir -p "${OMZ_CUSTOM}"
+        cp -r "/etc/cloud-terminal/omz-plugins/${plugin}" "${OMZ_CUSTOM}/" 2>/dev/null || \
+            echo "  ⚠️  Plugin backup not found for ${plugin} — first-run will clone it."
+    fi
+done
 
 # Automated "Dotfiles" Bootstrapper
 if [ -n "$DOTFILES_REPO" ]; then
