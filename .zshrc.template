@@ -11,8 +11,10 @@
 #   compdump) goes to /tmp (RAM), never to /data.
 # ─────────────────────────────────────────────────────────────────────────────
 
-# ── Guard: recover from invalid CWD (e.g. broken symlink after redeploy) ─────
-[[ -d "$PWD" ]] || cd /
+# ── Start in HOME ─────────────────────────────────────────────────────────────
+# Supervisord/ttyd inherit CWD from the entrypoint (which is now /). 
+# Always cd to ~ so the user starts in their home directory.
+cd ~ 2>/dev/null || cd /
 
 # ── Environment ───────────────────────────────────────────────────────────────
 export LANG="${LANG:-en_US.UTF-8}"

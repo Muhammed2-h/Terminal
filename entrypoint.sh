@@ -3,6 +3,14 @@ set -e
 # NOTE: Keep this script fast. Services (nginx, ttyd) must start within seconds.
 # Any slow I/O here delays the terminal becoming available.
 
+# CRITICAL: cd to / immediately.
+# The Dockerfile sets WORKDIR /root, so the entrypoint starts with CWD=/root.
+# persist_dir will `mv /root /root_bak` then later `rm -rf /root_bak`.
+# If we stay in /root, supervisord→ttyd→zsh all inherit that inode as CWD,
+# and when /root_bak is deleted, getcwd() returns ENOENT for every process
+# (pip, curl, uv, etc. all crash with "No such file or directory").
+cd /
+
 echo "Starting Persistence Engine..."
 
 # GPU Detection
