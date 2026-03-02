@@ -1,5 +1,7 @@
 #!/bin/bash
 set -e
+# NOTE: Keep this script fast. Services (nginx, ttyd) must start within seconds.
+# Any slow I/O here delays the terminal becoming available.
 
 echo "Starting Persistence Engine..."
 
@@ -19,35 +21,32 @@ fi
 # Ensure /data exists (this should be the mounted volume)
 mkdir -p /data/root /data/home
 
-# Function to handle persistence via symlinks without deleting image-baked files
+# ── Persistence via symlinks ──────────────────────────────────────────────────
+# IMPORTANT: The initial cp (first-run only) is run in the BACKGROUND so it
+# does NOT block supervisord/ttyd from starting. The terminal is usable within
+# seconds even while the volume is being seeded for the first time.
 persist_dir() {
     local target_dir=$1
     local storage_dir=$2
 
-    echo "Syncing $target_dir with $storage_dir..."
-
-    # Ensure storage exists
     mkdir -p "$storage_dir"
 
-    # If target is a real directory (not yet a link), we need to migrate it
     if [ ! -L "$target_dir" ]; then
-        # Merge contents: copy everything from image (target) to volume (storage) 
-        # but skip files that already exist in volume to preserve persistence
-        cp -an "$target_dir"/. "$storage_dir"/ 2>/dev/null || true
-        
-        # Now replace the directory with a symlink
-        # We move it to a backup location first to be safe
+        echo "Persisting $target_dir → $storage_dir (background copy)..."
+        # Move the real dir aside and immediately create the symlink so the
+        # rest of the entrypoint and supervisord can proceed without waiting.
         mv "$target_dir" "${target_dir}_bak"
         ln -s "$storage_dir" "$target_dir"
-        
-        # Finally, sync any missed files from backup and remove it
-        cp -an "${target_dir}_bak"/. "$target_dir"/ 2>/dev/null || true
-        rm -rf "${target_dir}_bak"
+        # Seed the volume in background — terminal stays responsive while this runs
+        ( cp -an "${target_dir}_bak"/. "$storage_dir"/ 2>/dev/null || true
+          rm -rf "${target_dir}_bak"
+          echo "  ✅ Background seed of $storage_dir complete." ) &
+    else
+        echo "  ✅ $target_dir already persisted."
     fi
 }
 
-# Persist critical paths
-# We do this BEFORE any other logic to ensure the environment is ready
+mkdir -p /data/root /data/home
 persist_dir "/root" "/data/root"
 persist_dir "/home" "/data/home"
 
@@ -114,7 +113,9 @@ htpasswd -bc /etc/nginx/.htpasswd "$TERMINAL_USER" "$TERMINAL_PASSWORD"
 
 # Generate Nginx configuration
 echo "Configuring Nginx reverse proxy on port ${PORT}..."
-envsubst '${PORT}' < /root/nginx.conf.template > /etc/nginx/sites-available/default
+# Read nginx template from /etc/cloud-terminal (baked into image, NOT on /data volume)
+# Reading from /root/nginx.conf.template would hit the network volume = potential block
+envsubst '${PORT}' < /etc/cloud-terminal/nginx.conf.template > /etc/nginx/sites-available/default
 
 # Generate ttyd start command on internal port (8081)
 # Auth is handled globally by Nginx - no -c flag needed here.

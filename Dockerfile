@@ -88,10 +88,10 @@ WORKDIR /root
 
 # Copy configuration files
 COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+# All templates go to /etc/cloud-terminal/ — baked into image, NEVER on /data volume.
+# entrypoint.sh reads exclusively from here, never from /root.
+COPY nginx.conf.template /etc/cloud-terminal/nginx.conf.template
 COPY nginx.conf.template /root/nginx.conf.template
-# Templates stored in /etc/cloud-terminal/ — outside /root so they are NEVER
-# persisted to /data. On every redeploy the container gets the fresh image version.
-# /root/.zshrc.template is kept only as a fallback for manual inspection.
 COPY .zshrc.template    /etc/cloud-terminal/zshrc.template
 COPY .tmux.conf.template /etc/cloud-terminal/tmux.conf.template
 COPY .zshrc.template    /root/.zshrc.template
