@@ -1,77 +1,60 @@
 # ─────────────────────────────────────────────────────────────────────────────
-# Cloud Terminal — Zsh Configuration
+# Cloud Terminal — Minimal Zsh Configuration
+#
+# WHY no Oh My Zsh / no plugins:
+#   /root is a symlink to /data (a Railway network volume). Any plugin that
+#   does filesystem I/O on every keypress (zsh-syntax-highlighting stat()s
+#   PATH dirs, zsh-autosuggestions reads HISTFILE) causes 100-500ms lag per
+#   keystroke, making the terminal appear frozen.
+#
+#   Solution: zero Oh My Zsh, zero plugins. All I/O-heavy state (history,
+#   compdump) goes to /tmp (RAM), never to /data.
 # ─────────────────────────────────────────────────────────────────────────────
 
-# ── Guard: recover silently from invalid CWD (e.g. after /root symlink swap) ──
-[[ -d "$PWD" ]] || cd ~
+# ── Guard: recover from invalid CWD (e.g. broken symlink after redeploy) ─────
+[[ -d "$PWD" ]] || cd /
+
+# ── Environment ───────────────────────────────────────────────────────────────
+export LANG="${LANG:-en_US.UTF-8}"
+export TERM="${TERM:-xterm-256color}"
 
 # ── Path ──────────────────────────────────────────────────────────────────────
-# Append extras — never fully replace PATH; OMZ/zsh build on it.
-# Static paths ONLY — no subshells ($(...)) here; they would hang startup.
-export PATH="$PATH:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-export PATH="$PATH:$HOME/.local/bin"    # pip --user installs
-export PATH="$PATH:$HOME/.cargo/bin"    # Rust/cargo installs
+# Static paths only — no subshells, no network-volume stat at startup.
+export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+# These may be on /data but we add them statically — they are only stat'd when
+# the user actually runs a command, not on every keypress.
+export PATH="$PATH:$HOME/.local/bin:$HOME/.cargo/bin"
 
-# ── Oh My Zsh performance guards (MUST come before source $ZSH/oh-my-zsh.sh) ─
-#
-# WHY these matter on Railway / network volumes:
-#
-#  DISABLE_AUTO_UPDATE  → OMZ's updater runs `git fetch` on ~/.oh-my-zsh every
-#                         few days. Since ~/.oh-my-zsh lives on /data (a network
-#                         volume), this blocks the entire shell startup for 10-60s.
-#
-#  'git' plugin removed → The git plugin + robbyrussell theme call `git status`
-#                         on EVERY prompt render (after every command). On /data
-#                         this makes the shell appear frozen after each keypress.
-#
-DISABLE_AUTO_UPDATE="true"
-DISABLE_UPDATE_PROMPT="true"
-DISABLE_MAGIC_FUNCTIONS="true"       # faster paste; avoids URL-quoting hangs
-DISABLE_UNTRACKED_FILES_DIRTY="true" # skip untracked-file scan in git status
-ZSH_DISABLE_COMPFIX="true"           # skip slow compaudit security check
-skip_global_compinit=1               # skip compinit entirely on startup (FAST)
+# ── History ───────────────────────────────────────────────────────────────────
+# CRITICAL: keep HISTFILE in /tmp (RAM), never on the network volume /data.
+# zsh reads HISTFILE on every up-arrow / autosuggestion — network vol = lag.
+export HISTFILE="/tmp/.zsh_history"
+export HISTSIZE=5000
+export SAVEHIST=5000
+setopt HIST_IGNORE_DUPS
+setopt APPEND_HISTORY
 
-export ZSH="$HOME/.oh-my-zsh"
+# ── Completion ────────────────────────────────────────────────────────────────
+# -C skips security check, -d /tmp/.zcompdump keeps the dump in RAM.
+# Run compinit once; zsh caches the dump so subsequent shells start instantly.
+autoload -Uz compinit
+compinit -C -d /tmp/.zcompdump
 
-# No theme — we set a custom fast prompt below that NEVER calls git
-ZSH_THEME=""
-
-# ── Plugin Guard: ensure plugins exist locally before sourcing OMZ ────────────
-# /root is a symlink to /data (network volume). If plugins are missing on the
-# volume, fall back to the baked image copy. Zero network calls either way.
-_OMZ_PLUGIN_DIR="${HOME}/.oh-my-zsh/custom/plugins"
-_OMZ_BAKED="/etc/cloud-terminal/omz-plugins"
-for _plugin in zsh-autosuggestions zsh-syntax-highlighting; do
-    if [ ! -d "${_OMZ_PLUGIN_DIR}/${_plugin}" ] && [ -d "${_OMZ_BAKED}/${_plugin}" ]; then
-        mkdir -p "${_OMZ_PLUGIN_DIR}"
-        cp -r "${_OMZ_BAKED}/${_plugin}" "${_OMZ_PLUGIN_DIR}/" 2>/dev/null
-    fi
-done
-unset _OMZ_PLUGIN_DIR _OMZ_BAKED _plugin
-
-# Plugins: git plugin REMOVED (it scans repos on every prompt = hangs)
-# zsh-autosuggestions + zsh-syntax-highlighting are safe; they read local memory
-plugins=(zsh-autosuggestions zsh-syntax-highlighting)
-
-source $ZSH/oh-my-zsh.sh
-
-# ── Custom prompt (instant — zero filesystem or git calls) ────────────────────
-# Format:  ❯ ~/your/path $
+# ── Prompt (instant — zero filesystem or git calls) ───────────────────────────
+# Format:  ❯ ~/your/path 
 # Colors:  green arrow, bold cyan path
-autoload -Uz promptinit && promptinit
 PROMPT='%F{82}❯%f %B%F{81}%~%f%b '
 RPROMPT=''
 
 # ── Background Process Persistence ───────────────────────────────────────────
 # Prevent zsh from sending SIGHUP to background jobs when the shell exits.
-# Anything run with `&` will survive tab close automatically.
+# Anything run with & will survive tab close automatically.
 setopt NOHUP
 setopt NO_CHECK_JOBS
 
 # ── persist: Run any command fully detached from this terminal ────────────────
 # Usage:   persist <command> [args...]
 # Example: persist npm run dev
-# Example: persist python app.py
 # Logs:    tail -f /tmp/persist-<name>.log
 persist() {
     if [ $# -eq 0 ]; then
@@ -83,8 +66,6 @@ persist() {
     name=$(basename "$1" 2>/dev/null || echo "$1")
     local logfile="/tmp/persist-${name}-$$.log"
 
-    # setsid creates a brand-new Linux session fully detached from the PTY.
-    # The process becomes a child of PID 1 and cannot receive SIGHUP ever.
     setsid "$@" > "$logfile" 2>&1 &
     local pid=$!
     disown "$pid"
@@ -109,7 +90,7 @@ plist() {
     echo ""
 }
 
-# ── Handy aliases ─────────────────────────────────────────────────────────────
+# ── Useful aliases ────────────────────────────────────────────────────────────
 alias l='ls -lah --color=auto'
 alias ll='ls -lah --color=auto'
 alias logs='tail -f /tmp/persist-*.log 2>/dev/null || echo "No persist logs found."'
