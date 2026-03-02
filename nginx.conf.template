@@ -1,5 +1,7 @@
-# Global Rate Limiting to prevent Brute-Force and DDoS attacks
-# Allows 10 requests per second per IP across the whole terminal
+# Rate Limiting — applied only to non-WebSocket HTTP requests (login, assets).
+# WebSocket connections (ttyd terminal, IDE) are EXEMPT — they are long-lived
+# persistent connections, not individual HTTP requests. Applying rate limiting
+# to them throttles WebSocket frames, causing constant reconnects and dropped keystrokes.
 limit_req_zone $binary_remote_addr zone=terminal_limit:10m rate=10r/s;
 
 server {
@@ -10,8 +12,8 @@ server {
     auth_basic "Cloud Terminal Secure Access";
     auth_basic_user_file /etc/nginx/.htpasswd;
 
-    # Apply Rate Limiting (Bursts allowed but eventually throttled)
-    limit_req zone=terminal_limit burst=20 nodelay;
+    # Rate limiting is NOT applied globally here — WebSocket connections at /
+    # and /ide/ are long-lived and must NOT be rate-limited (see location blocks).
 
     # Security Headers
     add_header X-Frame-Options "SAMEORIGIN";
@@ -19,8 +21,9 @@ server {
     add_header X-Content-Type-Options "nosniff";
 
     # Global performance optimizations
+    # tcp_nopush is intentionally DISABLED: it buffers data before sending,
+    # which is catastrophic for real-time WebSocket terminal streams.
     tcp_nodelay on;
-    tcp_nopush  on;
     keepalive_timeout 65;
 
     # Long timeout for WebSocket & long-polling connections
@@ -101,18 +104,44 @@ server {
     }
 
     # ── Root: Terminal (ttyd) ─────────────────────────────────────────────────
+    # Rate limiting is EXCLUDED here — this is a persistent WebSocket connection.
+    # Applying limit_req here would throttle every WebSocket frame as an HTTP
+    # request, causing constant disconnects and dropped keystrokes.
     location / {
-        proxy_pass         http://127.0.0.1:8081;
-        proxy_http_version 1.1;
-        proxy_set_header   Upgrade    $http_upgrade;
-        proxy_set_header   Connection "upgrade";
+        # Exempt from rate limiting
+        limit_req off;
+
+        proxy_pass             http://127.0.0.1:8081;
+        proxy_http_version     1.1;
+
+        # WebSocket upgrade headers
+        proxy_set_header       Upgrade              $http_upgrade;
+        proxy_set_header       Connection           "upgrade";
+        proxy_set_header       Host                 $host;
+        proxy_set_header       X-Real-IP            $remote_addr;
+        proxy_set_header       X-Forwarded-For      $proxy_add_x_forwarded_for;
+
+        # Long timeouts — terminal sessions can be idle for hours
+        proxy_read_timeout     86400s;
+        proxy_send_timeout     86400s;
+        proxy_connect_timeout  10s;
+
+        # Never buffer — forward every byte immediately for real-time I/O
+        proxy_buffering        off;
+        proxy_cache            off;
     }
 
     # ── VS Code / Code-Server ─────────────────────────────────────────────────
     location /ide/ {
-        proxy_pass         http://127.0.0.1:8082;
-        proxy_http_version 1.1;
-        proxy_set_header   Upgrade    $http_upgrade;
-        proxy_set_header   Connection "upgrade";
+        limit_req off;
+
+        proxy_pass             http://127.0.0.1:8082;
+        proxy_http_version     1.1;
+        proxy_set_header       Upgrade    $http_upgrade;
+        proxy_set_header       Connection "upgrade";
+        proxy_set_header       Host       $host;
+        proxy_read_timeout     86400s;
+        proxy_send_timeout     86400s;
+        proxy_buffering        off;
     }
 }
