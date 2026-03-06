@@ -130,7 +130,7 @@ if [ "${PERSIST_TMUX:-false}" = "true" ]; then
 #!/bin/bash
 # Attach to existing tmux session or create a new one.
 # SIGHUP from tab close never reaches user processes since tmux is the middleman.
-exec /usr/local/bin/ttyd -W -p 8081 -m "${MAX_CLIENTS}" tmux new-session -A -s main
+exec /usr/local/bin/ttyd -W -p 8081 -c "${TERMINAL_USER}:${TERMINAL_PASSWORD}" -m "${MAX_CLIENTS}" tmux new-session -A -s main
 EOF
 else
     echo "  Mode: plain zsh (use 'persist <cmd>' or 'tmux' for persistence)"
@@ -138,7 +138,7 @@ else
 #!/bin/bash
 # Plain zsh shell. .zshrc configures NOHUP so background jobs survive tab close.
 # For foreground apps: run `persist npm run dev` or open tmux first.
-exec /usr/local/bin/ttyd -W -p 8081 -m "${MAX_CLIENTS}" zsh
+exec /usr/local/bin/ttyd -W -p 8081 -c "${TERMINAL_USER}:${TERMINAL_PASSWORD}" -m "${MAX_CLIENTS}" zsh
 EOF
 fi
 chmod +x /usr/local/bin/start-ttyd.sh

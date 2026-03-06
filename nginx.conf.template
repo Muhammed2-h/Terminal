@@ -9,7 +9,7 @@ server {
     server_name _;
 
     # Global Zero-Trust Authenticator
-    auth_basic "Cloud Terminal Secure Access";
+    auth_basic "Cloud Terminal Login Area";
     auth_basic_user_file /etc/nginx/.htpasswd;
 
     # Rate limiting is NOT applied globally here — WebSocket connections at /
