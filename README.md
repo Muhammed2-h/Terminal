@@ -34,6 +34,7 @@ Configure these in your hosting dashboard:
 | `TERMINAL_PASSWORD` | `password123` | Your login password                                  |
 | `MAX_CLIENTS`       | `10`          | Max simultaneous terminal sessions                   |
 | `CLOUDFLARE_TOKEN`  | _None_        | Set to secure your terminal via a Cloudflare Tunnel. |
+| `SSH_PRIVATE_KEY`   | _None_        | (Optional) Private SSH key to configure Git SSH access automatically. |
 
 ### 2. Volume Mounting (CRITICAL)
 
