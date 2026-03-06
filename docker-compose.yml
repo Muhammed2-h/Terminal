@@ -1,5 +1,4 @@
 version: '3.8'
-
 services:
   cloud-terminal:
     build:
@@ -17,14 +16,6 @@ services:
       - ENABLE_OPENCLAW=${ENABLE_OPENCLAW:-false}
     volumes:
       - ./data:/data
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
     restart: always
-
 volumes:
   data:
