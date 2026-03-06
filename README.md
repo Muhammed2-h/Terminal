@@ -36,7 +36,15 @@ Configure these in your hosting dashboard:
 | `CLOUDFLARE_TOKEN`  | _None_        | Set to secure your terminal via a Cloudflare Tunnel. |
 | `SSH_PRIVATE_KEY`   | _None_        | (Optional) Private SSH key to configure Git SSH access automatically. |
 
-### 2. Volume Mounting (CRITICAL)
+### 2. Setting up Git SSH Access (Optional)
+
+If you want to seamlessly clone or push to private Git repositories (GitHub, GitLab, Bitbucket) without manual setup during each deployment:
+
+1. **Obtain your Private Key**: Use an existing private key (e.g., `~/.ssh/id_rsa`) or generate a new one.
+2. **Add as an Environment Variable**: Create an environment variable named `SSH_PRIVATE_KEY` in your hosting dashboard. Paste the *entire* text of your private key as the value, ensuring you include the `-----BEGIN OPENSSH PRIVATE KEY-----` and `-----END OPENSSH PRIVATE KEY-----` lines.
+3. **Use instantly**: Once the container boots, it securely installs the key and pre-trusts common Git hosts. You can immediately enter the terminal and run `git clone git@github.com:<username>/<repo>.git` with zero interactive setup.
+
+### 3. Volume Mounting (CRITICAL)
 
 For data to persist, you **MUST** mount a persistent volume to the `/data` directory.
 
