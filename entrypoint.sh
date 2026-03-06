@@ -88,6 +88,28 @@ echo "  ✅ .zshrc and .tmux.conf updated from fresh image templates."
 
 
 
+# Setup SSH if private key is provided
+if [ -n "$SSH_PRIVATE_KEY" ]; then
+    echo "🔑 Configuring SSH..."
+    mkdir -p /root/.ssh
+    chmod 700 /root/.ssh
+    
+    # Write the private key to id_rsa
+    # We use echo "$SSH_PRIVATE_KEY" to safely output the variable including newlines
+    echo "$SSH_PRIVATE_KEY" > /root/.ssh/id_rsa
+    chmod 600 /root/.ssh/id_rsa
+    
+    # Ensure known_hosts exists
+    touch /root/.ssh/known_hosts
+    chmod 644 /root/.ssh/known_hosts
+    
+    # Add common git hosts to known_hosts to prevent interactive prompts
+    if command -v ssh-keyscan &> /dev/null; then
+        ssh-keyscan github.com bitbucket.org gitlab.com >> /root/.ssh/known_hosts 2>/dev/null || true
+    fi
+    echo "  ✅ SSH private key configured successfully."
+fi
+
 # Automated "Dotfiles" Bootstrapper
 if [ -n "$DOTFILES_REPO" ]; then
     echo "⚙️ Bootstrapping Dotfiles from $DOTFILES_REPO..."

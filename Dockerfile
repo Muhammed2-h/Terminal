@@ -35,6 +35,7 @@ RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-reco
     nvtop \
     htop \
     jq \
+    openssh-client \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 
